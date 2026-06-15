@@ -3,6 +3,9 @@
 Tooling pessoal pra **acompanhar e economizar** consumo de tokens no [Claude Code](https://claude.com/claude-code).
 Tudo **100% local** (lê os logs em `~/.claude/projects/**/*.jsonl` via [ccusage](https://github.com/ryoppippi/ccusage)) — **não gasta token**.
 
+> 📚 **Documentação completa** (formato vault-graph): [`docs/claude-usage-monitor-vault/`](docs/claude-usage-monitor-vault/README.md).
+> Pra reconstruir do zero numa máquina nova, veja [`Ops-Restore`](docs/claude-usage-monitor-vault/Ops-Restore.md).
+
 ## O que faz
 
 **1. Statusline (2 linhas, sempre à vista)** — `statusline.js`

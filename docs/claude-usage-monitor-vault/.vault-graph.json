@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "categories": {
+    "root": {
+      "color": "#e5e7eb",
+      "label": "Root",
+      "hub": "README",
+      "prefixes": [],
+      "members": []
+    },
+    "foundation": {
+      "color": "#60a5fa",
+      "label": "Foundation",
+      "hub": "00-Foundation",
+      "prefixes": [
+        "Foundation-"
+      ],
+      "members": []
+    },
+    "statusline": {
+      "color": "#f59e0b",
+      "label": "Statusline",
+      "hub": "01-Statusline",
+      "prefixes": [
+        "Statusline-"
+      ],
+      "members": []
+    },
+    "panel": {
+      "color": "#34d399",
+      "label": "Panel",
+      "hub": "02-Panel",
+      "prefixes": [
+        "Panel-"
+      ],
+      "members": []
+    },
+    "operations": {
+      "color": "#22d3ee",
+      "label": "Operations",
+      "hub": "03-Operations",
+      "prefixes": [
+        "Ops-"
+      ],
+      "members": []
+    },
+    "internals": {
+      "color": "#a78bfa",
+      "label": "Internals",
+      "hub": "04-Internals",
+      "prefixes": [
+        "Internals-"
+      ],
+      "members": []
+    },
+    "ideas": {
+      "color": "#ec4899",
+      "label": "Ideas",
+      "hub": "05-Ideas",
+      "prefixes": [
+        "Ideas-"
+      ],
+      "members": []
+    },
+    "other": {
+      "color": "#94a3b8",
+      "label": "Outros",
+      "hub": null,
+      "prefixes": [],
+      "members": []
+    }
+  }
+}
