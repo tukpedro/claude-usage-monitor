@@ -208,6 +208,17 @@ if (require.main === module) {
       process.stdout.write(out + '\n');
     }
   }
+  else if (a === '--hook-prompt') {
+    // chamado pelo hook UserPromptSubmit: estima tokens do prompt e grava p/ o statusline
+    let prompt = '';
+    try {
+      const rawIn = fs.readFileSync(0, 'utf8');
+      try { const j = JSON.parse(rawIn); prompt = j.prompt || j.user_prompt || j.input || ''; }
+      catch (e) { prompt = rawIn; }
+    } catch (e) {}
+    const tokens = Math.round((prompt || '').length / 4);
+    try { fs.writeFileSync(path.join(DIR, '.last-input.json'), JSON.stringify({ tokens, ts: Date.now() })); } catch (e) {}
+  }
   else { const u = writeCache(); process.stdout.write(oneLine(u) + '\n'); }
 }
 

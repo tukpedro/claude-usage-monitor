@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Claude Code statusline — medidor de consumo (input por mensagem)
-// Mostra: modelo · ⛽ tokens/msg + barra + faixa · % da janela · custo · linhas
+// Mostra: modelo · ⛽ tokens/msg (+input pendente) + barra + faixa · % da janela · custo · linhas
 // 100% local (lê o transcript). Nao gasta token.
 
 const fs = require('fs');
@@ -21,6 +21,7 @@ const transcript = data.transcript_path || '';
 // Conta o ultimo turno do assistant DEPOIS do ultimo compact_boundary,
 // ignorando subagentes (isSidechain). Assim o compact reflete na hora.
 let ctxTokens = 0;
+let foundTs = null;
 let justCompacted = false;
 try {
   if (transcript && fs.existsSync(transcript)) {
@@ -43,11 +44,22 @@ try {
         ctxTokens = (u.input_tokens || 0)
                   + (u.cache_read_input_tokens || 0)
                   + (u.cache_creation_input_tokens || 0);
+        foundTs = o.timestamp || null;
         found = i; break;
       }
     }
     if (found === -1 && lastBoundary >= 0) justCompacted = true;
   }
+} catch (e) {}
+
+// --- input pendente (gravado pelo hook UserPromptSubmit) ---
+// Só conta se foi enviado DEPOIS do ultimo turno; senao ja esta no ctx (contaria dobrado).
+let inputTokens = 0;
+try {
+  const HOME = process.env.HOME || require('os').homedir();
+  const li = JSON.parse(fs.readFileSync(HOME + '/.claude/.last-input.json', 'utf8'));
+  const baseMs = foundTs ? Date.parse(foundTs) : 0;
+  if (li && li.ts && li.ts > baseMs && li.tokens > 0) inputTokens = li.tokens;
 } catch (e) {}
 
 const window = (/1m/i.test(modelId) || ctxTokens > 190000) ? 1000000 : 200000;
@@ -78,6 +90,14 @@ function bar(t) {
 let fuel;
 if (justCompacted) {
   fuel = col('⛽ compactado ✓', 32) + dim(' (atualiza no próx. turno)');
+} else if (inputTokens > 0) {
+  // input pendente: mostra base + input = total (custo da PROXIMA mensagem)
+  const total = ctxTokens + inputTokens;
+  const z = zone(total);
+  const k1 = t => (t / 1000).toFixed(1) + 'k';
+  fuel = '⛽ ' + col(k1(ctxTokens), z.code) + col('+' + k1(inputTokens), 35)
+       + col('=' + k1(total) + '/msg', z.code)
+       + ` ▕${bar(total)}▏ ${z.emoji} ` + col(z.label, z.code) + (z.hint ? col(z.hint, 31) : '');
 } else {
   const z = zone(ctxTokens);
   fuel = `⛽ ${col(fmt(ctxTokens) + '/msg', z.code)} ▕${bar(ctxTokens)}▏ ${z.emoji} `
