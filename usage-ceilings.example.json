@@ -1,0 +1,5 @@
+{
+  "sessionCost": 40,
+  "weekCost": 200,
+  "_note": "Tetos em USD-equivalente para estimar a % de uso. Estes sao defaults genericos. Calibre com o /usage aberto: node ~/.claude/usage-core.js --calibrate-week <pct>  e  --calibrate-session <pct>."
+}

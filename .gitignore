@@ -1,0 +1,11 @@
+# config pessoal e estado de runtime (vivem em ~/.claude, nunca no repo)
+usage-ceilings.json
+.usage-cache.json
+.usage-refresh.lock
+
+# node
+node_modules/
+npm-debug.log*
+
+# sistema
+.DS_Store
