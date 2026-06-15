@@ -10,7 +10,7 @@ try { raw = fs.readFileSync(0, 'utf8'); } catch (e) {}
 let data = {};
 try { data = JSON.parse(raw); } catch (e) {}
 
-const model   = (data.model && data.model.display_name) || 'Claude';
+const model   = (((data.model && data.model.display_name) || 'Claude').replace(/\s*\([^)]*\)/g, '')).trim();
 const modelId = (data.model && data.model.id) || '';
 const cost    = (data.cost && data.cost.total_cost_usd) || 0;
 const added   = (data.cost && data.cost.total_lines_added) || 0;
