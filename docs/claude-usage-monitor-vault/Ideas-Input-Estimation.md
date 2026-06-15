@@ -31,4 +31,11 @@ O input quase sempre é uma **fração mínima** do custo por mensagem. Exemplo:
 
 ## Status
 
-Não implementado. Candidato mais provável: o estimador `--tokens` (barato, direto, sem tocar no statusline).
+**Implementado** como `--tokens`:
+
+```bash
+echo "seu texto" | node ~/.claude/usage-core.js --tokens          # chars · palavras · ≈ tokens
+echo "seu texto" | node ~/.claude/usage-core.js --tokens 174000   # + impacto % sobre um contexto
+```
+
+Heurística `chars/4`. Confirma na prática que mesmo textos grandes são fração mínima do custo/msg — o contexto domina.

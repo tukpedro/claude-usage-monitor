@@ -10,6 +10,7 @@
 //   node usage-core.js --panel         -> painel ao vivo (1s) p/ terminal ao lado
 //   node usage-core.js --calibrate-week <pct>     -> alinha % da semana ao /usage
 //   node usage-core.js --calibrate-session <pct>  -> alinha % da sessao ao /usage
+//   echo "texto" | node usage-core.js --tokens [ctx] -> estima tokens do texto (heuristica)
 
 const fs = require('fs');
 const path = require('path');
@@ -187,6 +188,25 @@ if (require.main === module) {
     const pct = parseFloat(process.argv[3]); const u = computeSync();
     if (u.session && pct > 0) { const c = getCeilings(); c.sessionCost = +(u.session.cost / (pct / 100)).toFixed(2); saveCeilings(c); console.log('✓ sessionCost = $' + c.sessionCost + '  (sessão $' + u.session.cost.toFixed(2) + ' = ' + pct + '%)'); }
     else console.log('✗ sem bloco ativo ou % inválida.');
+  }
+  else if (a === '--tokens') {
+    if (process.stdin.isTTY) {
+      console.log('Uso: echo "seu texto" | node usage-core.js --tokens [ctxTokens]');
+    } else {
+      const text = fs.readFileSync(0, 'utf8');
+      const chars = text.length;
+      const words = (text.trim().match(/\S+/g) || []).length;
+      const tokens = Math.round(chars / 4);
+      const fmtN = n => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
+      let out = chars + ' chars · ' + words + ' palavras · '
+        + col('≈ ' + fmtN(tokens) + ' tokens', 36) + dim(' (heurística chars/4, ~±20%)');
+      const ctx = parseInt(process.argv[3], 10);
+      if (ctx > 0) {
+        out += '\n' + dim('impacto: +' + (tokens / ctx * 100).toFixed(2)
+          + '% no custo/msg (contexto ' + fmtN(ctx) + ') — e repago a cada turno');
+      }
+      process.stdout.write(out + '\n');
+    }
   }
   else { const u = writeCache(); process.stdout.write(oneLine(u) + '\n'); }
 }

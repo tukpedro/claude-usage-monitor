@@ -28,6 +28,12 @@ O comando lê o custo atual (sessão ou semana) e resolve o teto: `teto = custo 
 - **Semana**: calibrada de 35% ↔ $94.02 (2026-06-15) → teto ≈ $268.63.
 - **Sessão**: ainda no chute (`$40`). Calibrar na próxima vez que o /usage mostrar sessão > 0%.
 
-## Caveat
+## Caveat: por que não fica exatamente igual
 
-A janela de semana do ccusage pode não casar 100% com a janela oficial da Anthropic, então a calibração absorve só parte da diferença. Continua sendo **estimativa**.
+A calibração faz o número **bater no instante** em que você roda. Mas "exatamente igual o tempo todo" não é possível localmente, por três motivos:
+
+1. **É estimativa viva** — sessão/semana sobem conforme você usa. Calibrou em 35%; minutos depois (com mais uso) já está em 41%, e o /usage também subiu. A diferença momentânea é só tempo passando, não erro.
+2. **A ponderação difere** — o custo-equivalente do ccusage não escala perfeitamente com o peso interno da Anthropic. Prova: a semana calibrada a 35%↔$94 deu teto $268; depois, a 38%↔$127, deu teto $334 — o teto "se moveu".
+3. **ccusage só vê esta máquina** — uso em outro device ou no claude.ai entra no % oficial mas não no local.
+
+Solução prática: rode `--calibrate-week/-session <pct>` sempre que olhar o /usage e quiser re-sincronizar. A fonte exata é sempre o /usage.
