@@ -79,7 +79,9 @@ async function scrape() {
   try {
     killStale();
     tmux(['new-session', '-d', '-s', sess, '-x', '220', '-y', '55']);
-    tmux(['send-keys', '-t', sess, `cd ${TRUSTED_DIR} && claude`, 'Enter']);
+    // --permission-mode default evita a tela de warning do bypassPermissions
+    // (que travava o scraper). O scraper não usa tool nenhuma, então não precisa de bypass.
+    tmux(['send-keys', '-t', sess, `cd ${TRUSTED_DIR} && claude --permission-mode default`, 'Enter']);
     // espera o claude ficar pronto (até ~30s) — marcadores SÓ do claude (não o ❯ do shell)
     let ready = false, lastP = '';
     for (let i = 0; i < 60; i++) {
@@ -87,6 +89,8 @@ async function scrape() {
       let p = ''; try { p = tmux(['capture-pane', '-t', sess, '-p']); } catch (e) {}
       lastP = p;
       if (/Do you trust|trust the files/i.test(p)) { try { tmux(['send-keys', '-t', sess, 'Enter']); } catch (e) {} }
+      // fallback: se ainda aparecer o warning do bypass, aceita (opção 2)
+      if (/Bypass Permissions mode|Yes, I accept/i.test(p)) { try { tmux(['send-keys', '-t', sess, '2', 'Enter']); } catch (e) {} }
       if (/for agents|shift\+tab|\? for shortcuts|Try "|esc to interrupt/i.test(p)) { ready = true; break; }
     }
     if (!ready) throw new Error('claude não ficou pronto a tempo. Última tela:\n' + lastP.split('\n').filter(Boolean).slice(-8).join('\n'));
