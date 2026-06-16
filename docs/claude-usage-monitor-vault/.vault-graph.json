@@ -26,15 +26,6 @@
       ],
       "members": []
     },
-    "panel": {
-      "color": "#34d399",
-      "label": "Panel",
-      "hub": "02-Panel",
-      "prefixes": [
-        "Panel-"
-      ],
-      "members": []
-    },
     "operations": {
       "color": "#22d3ee",
       "label": "Operations",

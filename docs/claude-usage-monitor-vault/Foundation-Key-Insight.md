@@ -22,4 +22,4 @@ Compactar economiza no **futuro**, não no passado: muda a *inclinação* da sub
 
 ## Consequência prática
 
-A maior alavanca de economia é **gerenciar contexto** (`/compact` quando subir, `/clear` ao trocar de tarefa), não encurtar o que você digita — ver a discussão em Ideas-Input-Estimation.
+A maior alavanca de economia é **gerenciar contexto** (`/compact` quando subir, `/clear` ao trocar de tarefa), não encurtar o que você digita.

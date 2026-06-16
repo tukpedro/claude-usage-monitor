@@ -2,18 +2,18 @@
 
 ## O que é
 
-Um conjunto de scripts locais que mostram, em tempo real, **quanto de token cada interação com o Claude Code custa** — e estimam o quanto da cota de sessão/semana já foi consumida. O objetivo não é só observar: é **ensinar a ser econômico**, igual o medidor de consumo de um carro reage ao acelerador.
+Um script local que mostra, a cada mensagem do Claude Code, **quanto de token aquela interação custa** — e sinaliza com faixas de cor se está na hora de compactar. O objetivo não é só observar: é **ensinar a ser econômico**, igual o medidor de consumo de um carro reage ao acelerador.
 
-Dois artefatos:
+Um único artefato:
 
-1. **Statusline** (`statusline.js`) — a barra do Claude Code, em duas linhas. Linha 1 é o medidor de consumo por mensagem; linha 2 é o uso de sessão/semana.
-2. **Painel ao vivo** (`usage-core.js --panel`) — um terminal ao lado que atualiza a cada 1s com sessão, semana, burn rate e projeção.
+- **Statusline** (`statusline.js`) — uma linha na barra do Claude Code. Mostra modelo, ⛽ tok/msg, barra de consumo, faixa de economia, % da janela, custo acumulado e linhas adicionadas/removidas.
 
 ## O que NÃO é
 
-- **Não é a fonte oficial.** Os números são estimativas locais. A verdade canônica é o comando `/usage` do Claude Code.
+- **Não é a fonte oficial.** A verdade canônica é o comando `/usage` do Claude Code.
+- **Não mostra % de sessão/semana.** O JSON que o script recebe não traz esse dado, e somar a janela de 5h exigiria ler todas as sessões de todas as máquinas — o que o statusline deliberadamente não faz. Ele só mostra o que é confiável localmente: contexto, % da janela, custo e linhas.
 - **Não cobra nem gasta token.** Tudo é leitura local de arquivos de log; nenhuma chamada à API da Anthropic.
-- **Não mede outras máquinas.** Lê só os logs `~/.claude/projects/**/*.jsonl` desta máquina (mesma limitação do /usage).
+- **Não mede outras máquinas.** Lê só os logs `~/.claude/projects/**/*.jsonl` desta máquina.
 
 ## Pra quem
 

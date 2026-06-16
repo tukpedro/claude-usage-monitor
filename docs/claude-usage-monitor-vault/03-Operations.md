@@ -4,7 +4,7 @@ Instalar, restaurar do zero e versionar. Tudo que você precisa pra colocar pra 
 
 ## Documents in this layer
 
-- **[[Ops-Install]]** — `install.sh`, symlinks e o alias `uso`
+- **[[Ops-Install]]** — `install.sh` e o symlink do statusline
 - **[[Ops-Restore]]** — reconstruir do zero depois de formatar a máquina
 - **[[Ops-Github]]** — o repositório, push e o fluxo de atualização
 - **[[Ops-Troubleshooting]]** — problemas comuns e como resolver

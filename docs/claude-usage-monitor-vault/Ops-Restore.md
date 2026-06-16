@@ -10,44 +10,24 @@ Reconstruir tudo do zero — depois de formatar a máquina ou num computador nov
 ## Passo a passo
 
 ```bash
-# 1. ccusage (dependência dos números de sessão/semana)
-npm i -g ccusage
-
-# 2. clonar o repositório
+# 1. clonar o repositório
 mkdir -p ~/projects/tukpedro
 git clone https://github.com/tukpedro/claude-usage-monitor.git ~/projects/tukpedro/claude-usage-monitor
 cd ~/projects/tukpedro/claude-usage-monitor
 
-# 3. instalar (symlinks em ~/.claude + alias `uso`)
+# 2. instalar (cria o symlink ~/.claude/statusline.js)
 ./install.sh
 
-# 4. ligar o statusline: editar ~/.claude/settings.json e adicionar
+# 3. ligar o statusline: editar ~/.claude/settings.json e adicionar
 #    "statusLine": { "type": "command", "command": "node ~/.claude/statusline.js" }
 
-# 5. recarregar o shell (pro alias) e reiniciar o Claude Code (pro statusline)
-source ~/.zshrc
+# 4. reiniciar o Claude Code para o statusline aparecer
 ```
 
 ## Verificar
 
 ```bash
-node ~/.claude/usage-core.js --line     # deve imprimir a linha de uso colorida
-uso                                      # abre o painel ao vivo (Ctrl+C sai)
+printf '{}' | node ~/.claude/statusline.js   # deve imprimir a linha do medidor
 ```
 
-No Claude Code, o statusline de 2 linhas deve aparecer após reiniciar.
-
-## Recalibrar
-
-A calibração (`usage-ceilings.json`) é **local** e não vem no clone. Com o `/usage` aberto:
-
-```bash
-node ~/.claude/usage-core.js --calibrate-week <pct>
-node ~/.claude/usage-core.js --calibrate-session <pct>
-```
-
-São só dois números (tetos em custo-equivalente); refazer leva 30 segundos. Detalhes em Panel-Calibration.
-
-## O que NÃO precisa restaurar
-
-Os arquivos de runtime (`.usage-cache.json`, `.usage-refresh.lock`) são recriados sozinhos. Não estão no repo (ver o `.gitignore`).
+No Claude Code, o statusline deve aparecer após reiniciar.

@@ -9,11 +9,11 @@
 
 ## O que é versionado
 
-`statusline.js`, `usage-core.js`, `usage-ceilings.example.json`, `install.sh`, `README.md`, `.gitignore` e a vault em `docs/`. **Fora** do repo (via `.gitignore`): `usage-ceilings.json` (config pessoal) e os arquivos de runtime (cache/lock).
+`statusline.js`, `install.sh`, `README.md`, `.gitignore` e a vault em `docs/`.
 
 ## Atualizar depois de mexer
 
-Como `~/.claude/*.js` são symlinks pro repo, editar o tooling já edita os arquivos versionados. Pra subir:
+Como `~/.claude/statusline.js` é symlink pro repo, editar o tooling já edita o arquivo versionado. Pra subir:
 
 ```bash
 git -C ~/projects/tukpedro/claude-usage-monitor commit -am "descrição"
