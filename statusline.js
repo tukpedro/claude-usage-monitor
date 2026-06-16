@@ -93,4 +93,23 @@ const parts = [
 ];
 const line1 = parts.join(sep);
 
-process.stdout.write(line1);
+// --- 2a linha: uso OFICIAL (/usage), via cache do usage-real.js ---
+// O usage-real.js raspa o /usage num claude efêmero (0 token) e cacheia.
+// Aqui só LEMOS o cache; disparamos um re-scrape em background se estiver velho.
+let line2 = '';
+try {
+  const HOME = process.env.HOME || require('os').homedir();
+  const REAL  = HOME + '/.claude/usage-real.js';
+  const CACHE = HOME + '/.claude/.usage-real.json';
+  const LOCK  = HOME + '/.claude/.usage-real.lock';
+  const ur = require(REAL);
+  line2 = ur.oneLine(ur.readCache(), { compact: true });
+  let stale = true, locked = false;
+  try { stale = (Date.now() - fs.statSync(CACHE).mtimeMs) > 60000; } catch (e) {}
+  try { locked = (Date.now() - fs.statSync(LOCK).mtimeMs) < 30000; } catch (e) {}
+  if (stale && !locked) {
+    require('child_process').spawn(process.execPath, [REAL, '--scrape'], { detached: true, stdio: 'ignore' }).unref();
+  }
+} catch (e) { line2 = ''; }
+
+process.stdout.write(line2 ? (line1 + '\n' + line2) : line1);
