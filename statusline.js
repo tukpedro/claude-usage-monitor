@@ -22,6 +22,9 @@ const transcript = data.transcript_path || '';
 // ignorando subagentes (isSidechain). Assim o compact reflete na hora.
 let ctxTokens = 0;
 let justCompacted = false;
+// --- duração da sessão: primeiro e último timestamp do transcript ---
+let sessionStart = null;
+let sessionEnd = null;
 try {
   if (transcript && fs.existsSync(transcript)) {
     const lines = fs.readFileSync(transcript, 'utf8').split('\n');
@@ -47,6 +50,20 @@ try {
       }
     }
     if (found === -1 && lastBoundary >= 0) justCompacted = true;
+
+    // primeiro timestamp (abertura) e último (atividade mais recente), ignorando sidechain
+    for (let i = 0; i < lines.length; i++) {
+      if (!lines[i]) continue;
+      let o; try { o = JSON.parse(lines[i]); } catch (e) { continue; }
+      if (o.isSidechain) continue;
+      if (o.timestamp) { sessionStart = o.timestamp; break; }
+    }
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (!lines[i]) continue;
+      let o; try { o = JSON.parse(lines[i]); } catch (e) { continue; }
+      if (o.isSidechain) continue;
+      if (o.timestamp) { sessionEnd = o.timestamp; break; }
+    }
   }
 } catch (e) {}
 
@@ -84,13 +101,36 @@ if (justCompacted) {
        + col(z.label, z.code) + (z.hint ? col(z.hint, 31) : '');
 }
 
+// --- duração/abertura da sessão ---
+let sessionInfo = '';
+if (sessionStart) {
+  const start = new Date(sessionStart);
+  const now = sessionEnd ? new Date(sessionEnd) : start;
+  const hh = String(start.getHours()).padStart(2, '0');
+  const mm = String(start.getMinutes()).padStart(2, '0');
+  const sameDay = start.toDateString() === now.toDateString();
+  const dd = String(start.getDate()).padStart(2, '0');
+  const mo = String(start.getMonth() + 1).padStart(2, '0');
+  const dateStr = sameDay ? '' : `${dd}/${mo} `;
+
+  const elapsedMs = now - start;
+  const totalMin = Math.max(0, Math.round(elapsedMs / 60000));
+  const days = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60), m = totalMin % 60;
+  const dur = days > 0 ? `${days}d${h}h${String(m).padStart(2, '0')}`
+            : h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}min`;
+  const durColor = (days > 0 || h >= 8) ? 31 : h >= 3 ? 33 : 32;
+  sessionInfo = dim('🕐 aberta ') + col(`${dateStr}${hh}:${mm}`, '1') + dim(' · ') + col(dur, durColor);
+}
+
 const parts = [
   col(model, '36'),
   fuel,
   dim(pctWin + '% da janela'),
   `$${cost.toFixed(2)}`,
   dim(`+${fmt(added)}/-${fmt(removed)}`),
-];
+  sessionInfo || null,
+].filter(Boolean);
 const line1 = parts.join(sep);
 
 // --- 2a linha: uso OFICIAL (/usage), via cache do usage-real.js ---
@@ -99,9 +139,11 @@ const line1 = parts.join(sep);
 let line2 = '';
 try {
   const HOME = process.env.HOME || require('os').homedir();
-  const REAL  = HOME + '/.claude/usage-real.js';
-  const CACHE = HOME + '/.claude/.usage-real.json';
-  const LOCK  = HOME + '/.claude/.usage-real.lock';
+  // Respeita CLAUDE_CONFIG_DIR (conta isolada, ex. Team); cache/lock por conta.
+  const CFG   = process.env.CLAUDE_CONFIG_DIR || (HOME + '/.claude');
+  const REAL  = __dirname + '/usage-real.js';
+  const CACHE = CFG + '/.usage-real.json';
+  const LOCK  = CFG + '/.usage-real.lock';
   const ur = require(REAL);
   line2 = ur.oneLine(ur.readCache(), { compact: true });
   let stale = true, locked = false;
