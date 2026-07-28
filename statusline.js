@@ -22,9 +22,9 @@ const transcript = data.transcript_path || '';
 // ignorando subagentes (isSidechain). Assim o compact reflete na hora.
 let ctxTokens = 0;
 let justCompacted = false;
-// --- duração da sessão: primeiro e último timestamp do transcript ---
+// --- abertura da sessão + nº de turns ---
 let sessionStart = null;
-let sessionEnd = null;
+let turns = 0;
 try {
   if (transcript && fs.existsSync(transcript)) {
     const lines = fs.readFileSync(transcript, 'utf8').split('\n');
@@ -51,18 +51,23 @@ try {
     }
     if (found === -1 && lastBoundary >= 0) justCompacted = true;
 
-    // primeiro timestamp (abertura) e último (atividade mais recente), ignorando sidechain
+    // primeiro timestamp (abertura), ignorando sidechain
     for (let i = 0; i < lines.length; i++) {
       if (!lines[i]) continue;
       let o; try { o = JSON.parse(lines[i]); } catch (e) { continue; }
       if (o.isSidechain) continue;
       if (o.timestamp) { sessionStart = o.timestamp; break; }
     }
-    for (let i = lines.length - 1; i >= 0; i--) {
+
+    // turns = prompts REAIS do usuário. O transcript grava tool_result como
+    // type 'user' também, então sem filtrar dava ~6x o número real.
+    for (let i = 0; i < lines.length; i++) {
       if (!lines[i]) continue;
       let o; try { o = JSON.parse(lines[i]); } catch (e) { continue; }
-      if (o.isSidechain) continue;
-      if (o.timestamp) { sessionEnd = o.timestamp; break; }
+      if (o.type !== 'user' || o.isSidechain || o.isMeta) continue;
+      const c = o.message && o.message.content;
+      if (Array.isArray(c) && c.some(b => b && b.type === 'tool_result')) continue;
+      turns++;
     }
   }
 } catch (e) {}
@@ -101,27 +106,27 @@ if (justCompacted) {
        + col(z.label, z.code) + (z.hint ? col(z.hint, 31) : '');
 }
 
-// --- duração/abertura da sessão ---
+// --- abertura da sessão + turns ---
+// Sem duração: ela é derivável da hora de abertura, era info redundante.
 let sessionInfo = '';
 if (sessionStart) {
   const start = new Date(sessionStart);
-  const now = sessionEnd ? new Date(sessionEnd) : start;
   const hh = String(start.getHours()).padStart(2, '0');
   const mm = String(start.getMinutes()).padStart(2, '0');
-  const sameDay = start.toDateString() === now.toDateString();
+  // data só quando a sessão não abriu hoje — senão é ruído
+  const sameDay = start.toDateString() === new Date().toDateString();
   const dd = String(start.getDate()).padStart(2, '0');
   const mo = String(start.getMonth() + 1).padStart(2, '0');
   const dateStr = sameDay ? '' : `${dd}/${mo} `;
-
-  const elapsedMs = now - start;
-  const totalMin = Math.max(0, Math.round(elapsedMs / 60000));
-  const days = Math.floor(totalMin / 1440);
-  const h = Math.floor((totalMin % 1440) / 60), m = totalMin % 60;
-  const dur = days > 0 ? `${days}d${h}h${String(m).padStart(2, '0')}`
-            : h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}min`;
-  const durColor = (days > 0 || h >= 8) ? 31 : h >= 3 ? 33 : 32;
-  sessionInfo = dim('🕐 aberta ') + col(`${dateStr}${hh}:${mm}`, '1') + dim(' · ') + col(dur, durColor);
+  sessionInfo = dim('🕐 aberta ') + col(`${dateStr}${hh}:${mm}`, '1');
 }
+
+// Limiares medidos em ~14.5k sessões: o contexto mediano cresce ~10k/turn depois
+// do joelho (5→10 turns: 60k→266k). 12 turns ≈ 320k (faixa PESADO do ⛽) e
+// 50 ≈ 500k (faixa CARO) — mesmas fronteiras do medidor, só que em turns.
+const turnsInfo = turns
+  ? col('💬 ' + turns, turns >= 50 ? 31 : turns >= 12 ? 33 : 32) + dim(' turns')
+  : '';
 
 const parts = [
   col(model, '36'),
@@ -130,6 +135,7 @@ const parts = [
   `$${cost.toFixed(2)}`,
   dim(`+${fmt(added)}/-${fmt(removed)}`),
   sessionInfo || null,
+  turnsInfo || null,
 ].filter(Boolean);
 const line1 = parts.join(sep);
 
