@@ -129,19 +129,36 @@ async function scrape(force) {
     // modelo ("Current week (Fable)") renderiza ~400ms depois de sessão+semana.
     // Sair no 1º frame completo gravava week_models=[] metade das vezes e a
     // célula do modelo piscava na statusline (medido em 15/10: 810ms vs 1213ms).
-    let pane = '', data = null, prev = null;
+    // 2 frames iguais não bastou: o bloco do modelo chegou aos 813ms num probe e
+    // aos 2165ms noutro. Com modelo → sai no 1º frame estável; sem modelo → exige
+    // 5 frames iguais (~2s) antes de aceitar que ele não existe.
+    let pane = '', data = null, prev = null, same = 0;
     for (let i = 0; i < 25; i++) {
       await sleep(400);
       try { pane = tmux(['capture-pane', '-t', sess, '-p']); } catch (e) {}
       data = parsePane(pane);
-      if (data.session && data.week_all && prev === pane) break;
+      same = prev === pane ? same + 1 : 0;
       prev = pane;
+      if (!data.session || !data.week_all) continue;
+      if (data.week_models.length ? same >= 1 : same >= 4) break;
     }
     // grab() agora devolve null quando não achou "% used", então esta guarda
     // realmente dispara — e o cache anterior (bom) sobrevive ao scrape ruim.
     if (!data || !data.session || !data.week_all) {
       const falta = [!data || !data.session ? 'sessão' : null, !data || !data.week_all ? 'semana' : null].filter(Boolean).join(' e ');
       throw new Error(`painel /usage incompleto (faltou ${falta}). Tela:\n` + pane.split('\n').filter(Boolean).slice(-12).join('\n'));
+    }
+    // Diagnóstico: painel bruto da última captura sem bloco por modelo.
+    if (!data.week_models.length) { try { fs.writeFileSync(path.join(DIR, '.usage-real.lastpane.txt'), JSON.stringify({ env: { CLAUDECODE: process.env.CLAUDECODE, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, TERM: process.env.TERM }, ts: Date.now() }) + '\n' + pane); } catch (e) {} }
+    // Histerese: scrape sem bloco de modelo não apaga a célula — herda o modelo
+    // do cache anterior se ele tem <15 min. A hora em "pulled" continua honesta.
+    if (!data.week_models.length) {
+      const old = readCache();
+      if (old && old.week_models && old.week_models.length && Date.now() - (old.ts || 0) < 15 * 60000) {
+        data.week_models = old.week_models;
+        data.week_sonnet = old.week_models[0];
+        data.week_model_name = old.week_models[0].name;
+      }
     }
     const out = { ...data, ts: Date.now() };
     // Escrita atômica (tmp + rename): a statusline lê o cache a cada redesenho e
