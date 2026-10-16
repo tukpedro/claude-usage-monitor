@@ -69,17 +69,24 @@ function parsePane(txt) {
     for (let i = 0; i < lines.length; i++) if (re.test(lines[i])) return grabAt(i);
     return null;
   };
-  // "Current week (Sonnet only)", "(Opus only)", … — captura qualquer modelo.
-  let week_model = null, week_model_name = null;
+  // Blocos por modelo: "(Sonnet only)" (formato antigo) e "(Fable)" (novo, sem
+  // o "only"). O ' only' virou opcional — com ele obrigatório o bloco do Fable
+  // era silenciosamente ignorado e a célula sumia da linha.
+  // Coleta TODOS: o painel já traz mais de um modelo ao mesmo tempo.
+  const week_models = [];
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/Current week \((?!all models)(.+?)\s+only\)/i);
-    if (m) { week_model = grabAt(i); week_model_name = m[1]; break; }
+    const m = lines[i].match(/Current week \((?!all models)(.+?)(?:\s+only)?\)/i);
+    if (!m) continue;
+    const o = grabAt(i);
+    if (o) week_models.push({ name: m[1], ...o });
   }
   return {
     session: grab(/Current session\b/),
     week_all: grab(/Current week \(all models\)/),
-    week_sonnet: week_model,
-    week_model_name,
+    week_models,
+    // compat: consumidores antigos liam week_sonnet/week_model_name
+    week_sonnet: week_models[0] || null,
+    week_model_name: week_models[0] ? week_models[0].name : null,
   };
 }
 
@@ -118,12 +125,17 @@ async function scrape(force) {
     tmux(['send-keys', '-t', sess, '/usage', 'Enter']);
     // Espera os DOIS blocos renderizarem. Sair no 1º "% used" pega o painel
     // meio-pintado (sessão pronta, semana ainda em branco) e grava semana nula.
-    let pane = '', data = null;
+    // E só sai quando o painel ficou ESTÁVEL (2 capturas iguais): o bloco por
+    // modelo ("Current week (Fable)") renderiza ~400ms depois de sessão+semana.
+    // Sair no 1º frame completo gravava week_models=[] metade das vezes e a
+    // célula do modelo piscava na statusline (medido em 15/10: 810ms vs 1213ms).
+    let pane = '', data = null, prev = null;
     for (let i = 0; i < 25; i++) {
       await sleep(400);
       try { pane = tmux(['capture-pane', '-t', sess, '-p']); } catch (e) {}
       data = parsePane(pane);
-      if (data.session && data.week_all) break;
+      if (data.session && data.week_all && prev === pane) break;
+      prev = pane;
     }
     // grab() agora devolve null quando não achou "% used", então esta guarda
     // realmente dispara — e o cache anterior (bom) sobrevive ao scrape ruim.
@@ -132,7 +144,9 @@ async function scrape(force) {
       throw new Error(`painel /usage incompleto (faltou ${falta}). Tela:\n` + pane.split('\n').filter(Boolean).slice(-12).join('\n'));
     }
     const out = { ...data, ts: Date.now() };
-    try { fs.writeFileSync(CACHE, JSON.stringify(out)); } catch (e) {}
+    // Escrita atômica (tmp + rename): a statusline lê o cache a cada redesenho e
+    // um JSON meio-escrito virava readCache()=null → linha "coletando…" por 1 frame.
+    try { fs.writeFileSync(CACHE + '.tmp', JSON.stringify(out)); fs.renameSync(CACHE + '.tmp', CACHE); } catch (e) {}
     return out;
   } finally {
     kill();
@@ -152,8 +166,14 @@ function pulledAt(t) {
 
 function oneLine(r, opts) {
   opts = opts || {};
-  if (!r) return dim('/usage oficial: coletando… (1ª leitura ~10s)');
-  const seg = opts.compact ? 6 : 8;
+  if (!r) {
+    const msg = dim('/usage oficial: coletando… (1ª leitura ~10s)');
+    return opts.tailSeparate ? { body: msg, stamp: '' } : msg;
+  }
+  // Com 3+ células (sessão, semana, modelos) a barra de 6 segmentos empurrava a
+  // linha p/ 120+ colunas. 4 segmentos mantêm a leitura e devolvem ~10 colunas.
+  const nCells = 2 + ((r.week_models && r.week_models.length) || (r.week_sonnet ? 1 : 0));
+  const seg = opts.compact ? (nCells >= 3 ? 4 : 6) : 8;
   const short = s => s ? s.replace(',', '').replace(/\s+/g, ' ').trim() : '';
   // sessão/semana são obrigatórias: se sumirem, mostra "—" em vez de omitir a
   // célula (uma linha vazia parecia leitura saudável).
@@ -163,19 +183,36 @@ function oneLine(r, opts) {
     if (o.reset) s += dim((opts.compact ? ' ⟳' : ' reseta ') + short(o.reset));
     return s;
   };
-  const modelName = (r.week_model_name || 'sonnet').toLowerCase();
+  // Modelo ganha célula cheia (barra + % + reset), igual sessão/semana: costuma
+  // ser o número mais alto da linha e antes ficava cinza, passando despercebido.
+  // Fallback p/ cache antigo, que só tinha week_sonnet/week_model_name.
+  const models = r.week_models && r.week_models.length
+    ? r.week_models
+    : (r.week_sonnet && r.week_sonnet.pct != null
+        ? [{ name: r.week_model_name || 'sonnet', ...r.week_sonnet }] : []);
+  // O reset do modelo é praticamente o mesmo da semana ("Aug 7 8pm" vs
+  // "Aug 7 7:59pm"): repetir custava ~14 colunas e estourava terminal de 80.
+  // Mostra só se cair em outro dia — aí a diferença importa de verdade.
+  const weekDay = r.week_all && r.week_all.reset ? short(r.week_all.reset).split(' ').slice(0, 2).join(' ') : null;
   const parts = [
     cell('sessão', r.session),
     cell('semana', r.week_all),
-    (r.week_sonnet && r.week_sonnet.pct != null) ? dim(modelName + ' ' + r.week_sonnet.pct + '%') : null,
+    ...models.map(m => {
+      const sameDay = weekDay && m.reset && short(m.reset).startsWith(weekDay);
+      return cell(m.name.toLowerCase(), sameDay ? { pct: m.pct } : m);
+    }),
   ].filter(Boolean);
   const age = r.ts ? Math.round((Date.now() - r.ts) / 1000) : null;
   const head = col('/usage', '1;36') + dim(' oficial');
   // statusline re-scrapa aos 60s; >150s significa que o scrape em background
   // não está voltando. Com hora absoluta o dado velho não salta aos olhos —
   // o ⚠ continua sendo o sinal de "isso não está atualizando".
-  const tail = age == null ? '' : dim('  ·  pulled ' + pulledAt(r.ts) + (age > 150 ? ' ⚠' : ''));
-  return head + '  ' + parts.join(dim('  ·  ')) + tail;
+  const stamp = age == null ? '' : dim('pulled ' + pulledAt(r.ts) + (age > 150 ? ' ⚠' : ''));
+  const body = head + '  ' + parts.join(dim('  ·  '));
+  // tailSeparate: statusline quer o carimbo numa linha própria. O CLI (--force)
+  // segue com tudo numa linha só, que é o formato certo p/ saída de comando.
+  if (opts.tailSeparate) return { body, stamp };
+  return body + (stamp ? dim('  ·  ') + stamp : '');
 }
 
 // ---- painel ao vivo ----
@@ -207,8 +244,14 @@ function panel() {
       };
       row('Sessão 5h ', r.session);
       row('Semana    ', r.week_all);
-      const mn = r.week_model_name || 'Sonnet';
-      row((mn.charAt(0).toUpperCase() + mn.slice(1) + ' wk').padEnd(10), r.week_sonnet);
+      const models = r.week_models && r.week_models.length
+        ? r.week_models
+        : (r.week_sonnet && r.week_sonnet.pct != null
+            ? [{ name: r.week_model_name || 'Sonnet', ...r.week_sonnet }] : []);
+      for (const m of models) {
+        const mn = m.name.charAt(0).toUpperCase() + m.name.slice(1);
+        row((mn + ' wk').padEnd(10), m);
+      }
       L.push('');
       L.push('  ' + dim('pulled ' + (r.ts ? pulledAt(r.ts) : '--:--:--') + ' · re-scrape ~45s · Ctrl+C sai'));
     }

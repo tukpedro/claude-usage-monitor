@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Claude Code statusline — medidor de consumo (input por mensagem)
-// Mostra: modelo · ⛽ tokens/msg + barra + faixa · % da janela · custo · linhas
+// Mostra: modelo · ⛽ tokens/msg + barra + faixa · custo · linhas · abertura · turns
 // 100% local (lê o transcript). Nao gasta token.
 
 const fs = require('fs');
@@ -11,7 +11,6 @@ let data = {};
 try { data = JSON.parse(raw); } catch (e) {}
 
 const model   = (((data.model && data.model.display_name) || 'Claude').replace(/\s*\([^)]*\)/g, '')).trim();
-const modelId = (data.model && data.model.id) || '';
 const cost    = (data.cost && data.cost.total_cost_usd) || 0;
 const added   = (data.cost && data.cost.total_lines_added) || 0;
 const removed = (data.cost && data.cost.total_lines_removed) || 0;
@@ -72,8 +71,6 @@ try {
   }
 } catch (e) {}
 
-const window = (/1m/i.test(modelId) || ctxTokens > 190000) ? 1000000 : 200000;
-const pctWin = ctxTokens ? Math.round(ctxTokens / window * 100) : 0;
 const fmt = t => t >= 1000 ? (t / 1000).toFixed(t >= 10000 ? 0 : 1) + 'k' : String(t);
 
 // --- faixas de consumo (por tokens de input/msg) ---
@@ -131,7 +128,6 @@ const turnsInfo = turns
 const parts = [
   col(model, '36'),
   fuel,
-  dim(pctWin + '% da janela'),
   `$${cost.toFixed(2)}`,
   dim(`+${fmt(added)}/-${fmt(removed)}`),
   sessionInfo || null,
@@ -143,6 +139,7 @@ const line1 = parts.join(sep);
 // O usage-real.js raspa o /usage num claude efêmero (0 token) e cacheia.
 // Aqui só LEMOS o cache; disparamos um re-scrape em background se estiver velho.
 let line2 = '';
+let line3 = '';
 try {
   const HOME = process.env.HOME || require('os').homedir();
   // Respeita CLAUDE_CONFIG_DIR (conta isolada, ex. Team); cache/lock por conta.
@@ -151,13 +148,17 @@ try {
   const CACHE = CFG + '/.usage-real.json';
   const LOCK  = CFG + '/.usage-real.lock';
   const ur = require(REAL);
-  line2 = ur.oneLine(ur.readCache(), { compact: true });
+  // tailSeparate: o carimbo "pulled" vai p/ uma 3ª linha, deixando a 2ª só com
+  // os medidores. Sem ele a linha passava de 115 colunas e quebrava.
+  const o = ur.oneLine(ur.readCache(), { compact: true, tailSeparate: true });
+  line2 = o.body;
+  line3 = o.stamp || '';
   let stale = true, locked = false;
   try { stale = (Date.now() - fs.statSync(CACHE).mtimeMs) > 60000; } catch (e) {}
   try { locked = (Date.now() - fs.statSync(LOCK).mtimeMs) < 30000; } catch (e) {}
   if (stale && !locked) {
     require('child_process').spawn(process.execPath, [REAL, '--scrape'], { detached: true, stdio: 'ignore' }).unref();
   }
-} catch (e) { line2 = ''; }
+} catch (e) { line2 = ''; line3 = ''; }
 
-process.stdout.write(line2 ? (line1 + '\n' + line2) : line1);
+process.stdout.write([line1, line2, line3].filter(Boolean).join('\n'));
