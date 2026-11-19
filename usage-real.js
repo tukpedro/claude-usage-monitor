@@ -66,7 +66,16 @@ function parsePane(txt) {
     return pct === null ? null : { pct, reset };
   };
   const grab = re => {
-    for (let i = 0; i < lines.length; i++) if (re.test(lines[i])) return grabAt(i);
+    // O texto costurado das telas roladas pode repetir o bloco: pega a 1ª ocorrência
+    // completa (com reset); sem nenhuma completa, a 1ª que tiver o %.
+    let first = null;
+    for (let i = 0; i < lines.length; i++) {
+      if (!re.test(lines[i])) continue;
+      const o = grabAt(i);
+      if (o && o.reset) return o;
+      if (o && !first) first = o;
+    }
+    return first;
     return null;
   };
   // Blocos por modelo: "(Sonnet only)" (formato antigo) e "(Fable)" (novo, sem
@@ -78,7 +87,11 @@ function parsePane(txt) {
     const m = lines[i].match(/Current week \((?!all models)(.+?)(?:\s+only)?\)/i);
     if (!m) continue;
     const o = grabAt(i);
-    if (o) week_models.push({ name: m[1], ...o });
+    if (!o) continue;
+    // Dedup por modelo: a costura podia repetir o bloco e a statusline mostrava "fable" 8x (17/11).
+    const k = week_models.findIndex(w => w.name === m[1]);
+    if (k < 0) week_models.push({ name: m[1], ...o });
+    else if (!week_models[k].reset && o.reset) week_models[k] = { name: m[1], ...o };
   }
   return {
     session: grab(/Current session\b/),
@@ -88,6 +101,28 @@ function parsePane(txt) {
     week_sonnet: week_models[0] || null,
     week_model_name: week_models[0] ? week_models[0].name : null,
   };
+}
+
+// ---- costura das telas roladas do painel /usage ----
+// Linhas do conteúdo de uma captura: sem as setas de rolagem (↑/↓ na margem direita),
+// sem o que vem antes da barra de abas e sem linhas vazias.
+function frameLines(p) {
+  const ls = (p || '').split('\n').map(l => l.replace(/\s*[↑↓]\s*$/, '').replace(/\s+$/, ''));
+  const i = ls.findIndex(l => /Settings\s+Status\s+Config/.test(l));
+  // linhas vazias fora: a 1ª linha sob as abas some/aparece entre telas e desalinhava o encaixe
+  return (i >= 0 ? ls.slice(i + 1) : ls).filter(l => l.trim());
+}
+// Anexa a tela nova ao documento pela maior sobreposição (sufixo do doc == prefixo da tela).
+// Compara sem dígitos: "Total duration (wall): 2s" muda a cada segundo e quebrava o encaixe.
+const norm = l => l.replace(/\d+/g, '#');
+function mergeFrame(doc, fr) {
+  if (!doc.length) return fr.slice();
+  for (let k = Math.min(doc.length, fr.length); k > 0; k--) {
+    let ok = true;
+    for (let j = 0; j < k; j++) if (norm(doc[doc.length - k + j]) !== norm(fr[j])) { ok = false; break; }
+    if (ok) return doc.concat(fr.slice(k));
+  }
+  return doc.concat(fr);
 }
 
 // ---- captura (spawna claude efêmero) ----
@@ -110,9 +145,11 @@ async function scrape(force) {
     // Propaga CLAUDE_CONFIG_DIR p/ o claude efêmero raspar o /usage da conta certa (ex. Team).
     const cfgEnv = process.env.CLAUDE_CONFIG_DIR ? `CLAUDE_CONFIG_DIR=${process.env.CLAUDE_CONFIG_DIR} ` : '';
     tmux(['send-keys', '-t', sess, `cd ${TRUSTED_DIR} && ${cfgEnv}claude --permission-mode default`, 'Enter']);
-    // espera o claude ficar pronto (até ~30s) — marcadores SÓ do claude (não o ❯ do shell)
+    // espera o claude ficar pronto (até ~60s) — marcadores SÓ do claude (não o ❯ do shell).
+    // Era 30s; em 31/10 o claude levou >30s pra abrir (plugins + MCPs) e o scrape
+    // morria com "não ficou pronto", deixando o cache congelado por dias.
     let ready = false, lastP = '';
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 120; i++) {
       await sleep(500);
       let p = ''; try { p = tmux(['capture-pane', '-t', sess, '-p']); } catch (e) {}
       lastP = p;
@@ -132,21 +169,35 @@ async function scrape(force) {
     // 2 frames iguais não bastou: o bloco do modelo chegou aos 813ms num probe e
     // aos 2165ms noutro. Com modelo → sai no 1º frame estável; sem modelo → exige
     // 5 frames iguais (~2s) antes de aceitar que ele não existe.
-    let pane = '', data = null, prev = null, same = 0;
-    for (let i = 0; i < 25; i++) {
+    // Desde o 2.1.319 a aba Usage abre com "Session" + "Plugin skill-listing footprint"
+    // no topo e o "Current week" fica ABAIXO da dobra (viewport fixo, aumentar -y não
+    // ajuda). Então rola com ↓ e costura as telas (mergeFrame) num documento só, que é
+    // o que vai pro parsePane. Sem isso o scrape falhava sempre e o cache congelou em
+    // 12/11 05:10.
+    let pane = '', data = null, prev = null, same = 0, doc = [];
+    for (let i = 0; i < 60; i++) {
       await sleep(400);
-      try { pane = tmux(['capture-pane', '-t', sess, '-p']); } catch (e) {}
+      let raw = ''; try { raw = tmux(['capture-pane', '-t', sess, '-p']); } catch (e) {}
+      const more = /↓\s*$/m.test(raw);
+      doc = mergeFrame(doc, frameLines(raw));
+      pane = doc.join('\n');
       data = parsePane(pane);
       same = prev === pane ? same + 1 : 0;
       prev = pane;
-      if (!data.session || !data.week_all) continue;
+      // ainda tem conteúdo abaixo e o bloco por modelo não apareceu → rola mais
+      const incompleto = !data.week_all || !data.week_all.reset || !data.week_models.length || data.week_models.some(m => !m.reset);
+      if (more && incompleto) { try { tmux(['send-keys', '-t', sess, 'Down']); } catch (e) {} same = 0; continue; }
+      // Só a semana é obrigatória: desde o Claude Code 2.1.316 o painel do plano
+      // Ultra não traz o bloco "Current session" (só "Current week (all models)"
+      // e "Current week (<modelo>)"). Exigir sessão deixava o cache congelado
+      // (29/10 21:23 → 31/10) com "semana 100%" falso na statusline.
+      if (!data.week_all) continue;
       if (data.week_models.length ? same >= 1 : same >= 4) break;
     }
     // grab() agora devolve null quando não achou "% used", então esta guarda
     // realmente dispara — e o cache anterior (bom) sobrevive ao scrape ruim.
-    if (!data || !data.session || !data.week_all) {
-      const falta = [!data || !data.session ? 'sessão' : null, !data || !data.week_all ? 'semana' : null].filter(Boolean).join(' e ');
-      throw new Error(`painel /usage incompleto (faltou ${falta}). Tela:\n` + pane.split('\n').filter(Boolean).slice(-12).join('\n'));
+    if (!data || !data.week_all) {
+      throw new Error('painel /usage incompleto (faltou semana). Tela:\n' + pane.split('\n').filter(Boolean).slice(-12).join('\n'));
     }
     // Diagnóstico: painel bruto da última captura sem bloco por modelo.
     if (!data.week_models.length) { try { fs.writeFileSync(path.join(DIR, '.usage-real.lastpane.txt'), JSON.stringify({ env: { CLAUDECODE: process.env.CLAUDECODE, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, TERM: process.env.TERM }, ts: Date.now() }) + '\n' + pane); } catch (e) {} }
@@ -212,7 +263,9 @@ function oneLine(r, opts) {
   // Mostra só se cair em outro dia — aí a diferença importa de verdade.
   const weekDay = r.week_all && r.week_all.reset ? short(r.week_all.reset).split(' ').slice(0, 2).join(' ') : null;
   const parts = [
-    cell('sessão', r.session),
+    // sessão some do painel no plano Ultra (2.1.316+): aí omite a célula em vez
+    // de mostrar "sessão —", que parecia leitura quebrada.
+    r.session ? cell('sessão', r.session) : null,
     cell('semana', r.week_all),
     ...models.map(m => {
       const sameDay = weekDay && m.reset && short(m.reset).startsWith(weekDay);
@@ -296,4 +349,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { scrape, readCache, oneLine, parsePane, bar, colorFor };
+module.exports = { scrape, readCache, oneLine, parsePane, bar, colorFor, frameLines, mergeFrame };
