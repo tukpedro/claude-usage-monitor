@@ -20,6 +20,20 @@ Opus 4.8 · ⛽ 174k/msg ▕███░░░░░▏ 🟡 MÉDIO · 17% da ja
 
 ## Instalação
 
+Requer Node.js, Claude Code instalado e autenticado, e `tmux` para o painel `uso` e a segunda linha da statusline.
+
+No macOS, instale o `tmux` pelo [Homebrew](https://brew.sh):
+
+```bash
+brew install tmux
+```
+
+No Debian/Ubuntu:
+
+```bash
+sudo apt install tmux
+```
+
 ```bash
 git clone <este-repo>
 cd claude-usage-monitor

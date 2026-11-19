@@ -26,7 +26,22 @@ add_alias "$HOME/.zshrc"
 add_alias "$HOME/.bashrc"
 
 # 3) tmux é pré-requisito do scraper do /usage
-command -v tmux >/dev/null 2>&1 || echo "⚠ tmux não encontrado — instale (a 2ª linha/painel precisam dele). Ex.: sudo apt install tmux"
+if ! command -v tmux >/dev/null 2>&1; then
+  case "$(uname -s)" in
+    Darwin)
+      echo "⚠ tmux não encontrado — no macOS, instale com: brew install tmux"
+      if ! command -v brew >/dev/null 2>&1; then
+        echo "Instale primeiro o Homebrew: https://brew.sh"
+      fi
+      ;;
+    Linux)
+      echo "⚠ tmux não encontrado — instale pelo gerenciador da distribuição (Debian/Ubuntu: sudo apt install tmux)."
+      ;;
+    *)
+      echo "⚠ tmux não encontrado — instale o tmux para usar a 2ª linha/painel."
+      ;;
+  esac
+fi
 
 cat <<'EOF'
 
