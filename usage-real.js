@@ -143,8 +143,9 @@ async function scrape(force) {
     // --permission-mode default evita a tela de warning do bypassPermissions
     // (que travava o scraper). O scraper não usa tool nenhuma, então não precisa de bypass.
     // Propaga CLAUDE_CONFIG_DIR p/ o claude efêmero raspar o /usage da conta certa (ex. Team).
-    const cfgEnv = process.env.CLAUDE_CONFIG_DIR ? `CLAUDE_CONFIG_DIR=${process.env.CLAUDE_CONFIG_DIR} ` : '';
-    tmux(['send-keys', '-t', sess, `cd ${TRUSTED_DIR} && ${cfgEnv}claude --permission-mode default`, 'Enter']);
+    const shellQuote = value => "'" + value.replace(/'/g, "'\\''") + "'";
+    const cfgEnv = process.env.CLAUDE_CONFIG_DIR ? `CLAUDE_CONFIG_DIR=${shellQuote(process.env.CLAUDE_CONFIG_DIR)} ` : '';
+    tmux(['send-keys', '-t', sess, `cd ${shellQuote(TRUSTED_DIR)} && ${cfgEnv}claude --permission-mode default`, 'Enter']);
     // espera o claude ficar pronto (até ~60s) — marcadores SÓ do claude (não o ❯ do shell).
     // Era 30s; em 31/10 o claude levou >30s pra abrir (plugins + MCPs) e o scrape
     // morria com "não ficou pronto", deixando o cache congelado por dias.

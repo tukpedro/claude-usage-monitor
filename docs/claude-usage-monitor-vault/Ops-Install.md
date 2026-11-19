@@ -4,7 +4,12 @@ Instalação numa máquina que já tem o repositório clonado.
 
 ## Pré-requisito
 
-Node.js (qualquer versão recente).
+Node.js, Claude Code instalado e autenticado, e `tmux` para o painel `uso` e a segunda linha da statusline.
+
+- macOS com [Homebrew](https://brew.sh): `brew install tmux`.
+- Debian/Ubuntu: `sudo apt install tmux`.
+
+O instalador identifica o sistema e informa o comando quando o `tmux` está ausente.
 
 ## install.sh
 
