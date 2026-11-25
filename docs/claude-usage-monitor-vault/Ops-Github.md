@@ -2,9 +2,9 @@
 
 ## Repositório
 
-- **URL**: https://github.com/tukpedro/claude-usage-monitor (privado)
+- **URL**: https://github.com/tukpedro/claude-usage-monitor (público)
 - **Branch**: `main`
-- Criado com `gh repo create claude-usage-monitor --private --source=. --push`.
+- Criado com `gh repo create claude-usage-monitor --public --source=. --push`.
 - Vive em `~/projects/tukpedro/claude-usage-monitor/`.
 
 ## O que é versionado

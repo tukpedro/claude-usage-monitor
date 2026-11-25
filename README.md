@@ -58,3 +58,12 @@ Pra cota de sessão/semana, **a fonte é sempre `/usage`** — o número oficial
 |---|---|
 | `statusline.js` | statusline do Claude Code (medidor de contexto/msg) |
 | `install.sh` | cria o symlink em `~/.claude` |
+
+## Autores
+
+- [Pedro Pastuk](https://github.com/tukpedro)
+- [Eduardo Lanzi](https://github.com/cadulanzi) — suporte à instalação no macOS
+
+## Licença
+
+[MIT](LICENSE)
