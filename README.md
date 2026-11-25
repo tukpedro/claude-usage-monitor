@@ -62,7 +62,7 @@ Pra cota de sessão/semana, **a fonte é sempre `/usage`** — o número oficial
 ## Autores
 
 - [Pedro Pastuk](https://github.com/tukpedro)
-- [Eduardo Lanzi](https://github.com/cadulanzi) — suporte à instalação no macOS
+- [Eduardo Lanzi](https://github.com/cadulanzi)
 
 ## Licença
 
